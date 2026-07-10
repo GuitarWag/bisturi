@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ctx-bisturi"
+version = "0.1.0"
+description = "Surgically excise topics from a Claude Code session transcript, via a TUI."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = []
+
+[project.scripts]
+bisturi = "ctxbisturi.cli:main"
+
+[tool.setuptools]
+packages = ["ctxbisturi"]
