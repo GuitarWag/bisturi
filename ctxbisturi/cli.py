@@ -38,6 +38,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--list", action="store_true", help="list sessions and exit")
     parser.add_argument("--print", dest="print_turns", action="store_true",
                         help="print the turn breakdown and exit (no TUI)")
+    parser.add_argument("--json", action="store_true",
+                        help="emit the turn breakdown as JSON and exit (for tools/commands)")
     parser.add_argument("--cut", metavar="NUMS",
                         help="comma-separated turn numbers to cut (skips the TUI)")
     parser.add_argument("--in-place", action="store_true",
@@ -59,6 +61,10 @@ def main(argv: list[str] | None = None) -> int:
         print("no user prompts found — nothing to cut.", file=sys.stderr)
         return 1
 
+    if args.json:
+        _print_json(session)
+        return 0
+
     if args.print_turns or args.list and args.file:
         _print_turns(session)
         return 0
@@ -69,7 +75,17 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         return _apply(session, to_cut, in_place=args.in_place, dry_run=args.dry_run)
 
-    # Interactive path.
+    # Interactive path — needs a real terminal. When invoked without one
+    # (e.g. from an agent's captured shell), guide the caller instead of crashing.
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        _print_turns(session)
+        print("\nno interactive terminal here — the TUI needs a real TTY.", file=sys.stderr)
+        print("• inside Claude Code, run it yourself with:  !bisturi "
+              f"{os.path.relpath(path) if not os.path.isabs(path) else path}", file=sys.stderr)
+        print("• or cut non-interactively:  bisturi <file> --cut <nums> [--in-place]",
+              file=sys.stderr)
+        return 2
+
     from .tui import run as run_tui  # imported lazily so --list works without a tty
 
     to_cut = run_tui(session)
@@ -125,6 +141,28 @@ def _print_turns(session: Session) -> None:
     for t in session.turns:
         ts = t.timestamp[:19].replace("T", " ")
         print(f"{t.number:>3}. {ts}  ~{t.token_estimate():>6}t  {t.title(70)}")
+
+
+def _print_json(session: Session) -> None:
+    import json
+
+    payload = {
+        "path": session.path,
+        "session_id": os.path.splitext(os.path.basename(session.path))[0],
+        "total_tokens": session.total_tokens(),
+        "turns": [
+            {
+                "number": t.number,
+                "timestamp": t.timestamp,
+                "title": t.title(80),
+                "prompt": t.prompt_text[:500],
+                "token_estimate": t.token_estimate(),
+                "entries": len(t.entries),
+            }
+            for t in session.turns
+        ],
+    }
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
 def _parse_nums(spec: str, count: int) -> set[int] | None:

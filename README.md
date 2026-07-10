@@ -68,6 +68,34 @@ Inspect and cut without the TUI:
 ./bisturi session.jsonl --cut 2 --in-place   # replace original, keep a .bak-* backup
 ```
 
+## Inside Claude Code (`/ctx-cut`)
+
+There's a slash command so you can do this from within a Claude session. A
+slash command can't *host* a full-screen TUI itself (Claude's shell has no
+interactive terminal), so `/ctx-cut` gives you two ways to see and confirm the
+blocks, both inside the interface:
+
+- **Visual TUI** — the command hands you `!bisturi <session>`. The `!` prefix
+  runs it in your real terminal, so the checkbox TUI opens right there in the
+  session; its result prints back into the chat.
+- **In-chat** — Claude lists the numbered blocks and confirms your selection
+  with Claude Code's native selectable question UI, then shows a dry-run before
+  writing anything.
+
+```
+/ctx-cut                         # recent sessions of the current project
+/ctx-cut <session-id>            # a specific session
+/ctx-cut --project ~/code/app    # another project
+```
+
+Install: copy `.claude/commands/ctx-cut.md` to `~/.claude/commands/` (global) or
+keep it in a project's `.claude/commands/`, and put `bisturi` on your `PATH`
+(e.g. `ln -s "$PWD/bisturi" ~/.local/bin/bisturi`).
+
+Note: you can't hot-edit the **currently running** session — Claude Code owns
+that file while live. Cut a past session, or cut the current one and pick up the
+trimmed context on the next `claude --resume`.
+
 ### TUI keys
 
 | Key | Action |
