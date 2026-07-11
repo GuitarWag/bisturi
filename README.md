@@ -1,12 +1,18 @@
-# ctx-bisturi
+<p align="center">
+  <img src="images/logo.png" alt="ctx-bisturi" width="440">
+</p>
 
-Surgically excise a topic from a Claude Code session's context — keep the parts
-you still need, cut out the middle you don't. A Bubble Tea TUI to pick the
-blocks, safe re-threading so the trimmed session still resumes, and a local
-surgery log so any cut can be undone later.
+<h1 align="center">ctx-bisturi</h1>
 
-*Bisturi* is Italian/Portuguese for scalpel. Not a blunt `/clear`, not a lossy
-`/compact` — a clean cut of a specific span.
+<p align="center">
+  Surgically excise a topic from a Claude Code session's context —<br>
+  keep what you need, cut out the middle you don't.
+</p>
+
+**bisturi** is Brazilian Portuguese for *scalpel* — and that's the whole idea. A
+Bubble Tea TUI to pick the blocks, safe re-threading so the trimmed session still
+resumes, and a local surgery log so any cut can be undone later. Not a blunt
+`/clear`, not a lossy `/compact` — a clean cut of a specific span.
 
 ## The problem it solves
 
@@ -24,6 +30,37 @@ The built-ins don't do this:
 
 Rewind moves one pointer back in time; it can't remove a span from the *middle*
 and keep what came after. That middle-excision is the gap ctx-bisturi fills.
+
+## See it work
+
+Pick the blocks in the TUI — each block is one prompt **plus its full reply**,
+shown with a token weight so you know what's heavy:
+
+![bisturi TUI — the block list](images/ex_bisturi_1.png)
+
+Press `d` to preview the exact diff before committing — what's removed, what's
+kept, and the token delta:
+
+![bisturi TUI — diff preview](images/ex_bisturi_diff.png)
+
+Press `y` to apply. It writes straight to the session file, keeping a `.bak-*`
+backup and a restorable surgery:
+
+![bisturi — applied in place](images/ex_bisturi_applied.png)
+
+### Proof: 207.8k → 38k tokens
+
+A real session bloated by reading a 1,000-line CSV. Cutting the CSV blocks and
+restarting the session took it from **21% of the window down to 4%** — messages
+dropped from **185.3k to 15.6k tokens**:
+
+| Before the cut | After the cut + restart |
+| --- | --- |
+| ![/context before](images/ex_ctx_before_cut.png) | ![/context after](images/ex_ctx_after_cut.png) |
+
+> The drop only lands **after you restart Claude Code** on that session — a
+> running session holds its context in memory and reloads the trimmed transcript
+> on `claude --resume`. bisturi reminds you of this when you apply.
 
 ## How it works
 
