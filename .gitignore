@@ -1,8 +1,12 @@
+# Go build output
+/bisturi
+*.exe
+
+# cut / backup artifacts
+*.cut.jsonl
+*.bak-*
+
+# python attic
 __pycache__/
 *.pyc
 .pytest_cache/
-*.egg-info/
-build/
-dist/
-*.cut.jsonl
-*.bak-*
