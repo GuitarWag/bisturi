@@ -160,11 +160,11 @@ bisturi --restore <id> --in-place     # put a cut's blocks back
 | `y` | apply the cut |
 | `q` / `esc` | quit without changing anything |
 
-## Inside Claude Code (`/ctx-cut`)
+## Inside Claude Code (`/bisturi`)
 
 A slash command drives this from within a session. A slash command can't *host* a
 full-screen TUI itself (the agent's shell has no interactive terminal), so
-`/ctx-cut` gives you two ways to see and confirm the blocks:
+`/bisturi` gives you two ways to see and confirm the blocks:
 
 - **Visual TUI** — it hands you `!bisturi -s <name>`. The `!` prefix runs it in
   your real terminal, so the checkbox TUI opens right there; its result prints

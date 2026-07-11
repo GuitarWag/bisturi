@@ -4,13 +4,13 @@ argument-hint: "[-s name | session-id | path | --project DIR]  (defaults to rece
 allowed-tools: Bash(bisturi:*), Bash(ls:*), Bash(find:*), AskUserQuestion
 ---
 
-You are driving **ctx-bisturi** (a Go CLI), which removes selected turns (topic
+You are driving **bisturi** (a Go CLI), which removes selected turns (topic
 blocks) from a Claude Code session transcript and relinks it so the trimmed
 session still resumes. Every cut is also saved as a restorable surgery. The user
 wants to see the blocks and confirm a cut from inside this interface.
 
 Use the `bisturi` command (on PATH). If it's missing, build it: from the
-ctx-bisturi repo run `go build -o bisturi .` and use `./bisturi`.
+bisturi repo run `go build -o bisturi .` and use `./bisturi`.
 
 User argument (may be empty): `$ARGUMENTS`
 
