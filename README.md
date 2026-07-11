@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="images/logo.png" alt="ctx-bisturi" width="440">
+  <img src="images/logo.png" alt="bisturi" width="440">
 </p>
 
-<h1 align="center">ctx-bisturi</h1>
+<h1 align="center">bisturi</h1>
 
 <p align="center">
   Surgically excise a topic from a Claude Code session's context —<br>
@@ -29,7 +29,7 @@ The built-ins don't do this:
 | `/rewind` (Esc·Esc) | rolls back to a checkpoint | **linear** — to drop B it also drops C |
 
 Rewind moves one pointer back in time; it can't remove a span from the *middle*
-and keep what came after. That middle-excision is the gap ctx-bisturi fills.
+and keep what came after. That middle-excision is the gap bisturi fills.
 
 ## See it work
 
@@ -67,7 +67,7 @@ dropped from **185.3k to 15.6k tokens**:
 A session lives at `~/.claude/projects/<slugged-cwd>/<session-id>.jsonl`; each
 line is one JSON object, and message objects are threaded by `uuid`/`parentUuid`.
 Real sessions aren't a clean line — parallel tool calls, retries, sidechains and
-compaction make the thread a *forest* (many roots and leaf tips). So ctx-bisturi
+compaction make the thread a *forest* (many roots and leaf tips). So bisturi
 doesn't try to reverse-engineer one canonical path. It treats the file as what it
 is — a chronological append log — and:
 
@@ -181,7 +181,7 @@ trimmed context on the next `claude --resume`.
 - The original is never touched unless you pass `--in-place`, and even then a
   `.bak-<timestamp>` copy is written first.
 - Every cut is also saved as a restorable surgery under
-  `~/.claude/ctx-bisturi/surgeries/`.
+  `~/.claude/bisturi/surgeries/`.
 - Writes are atomic (temp file + rename).
 - Tests assert the cut chain is single-rooted, fully reachable, and dangling-free,
   and that a cut survives a restore even after the session grew.

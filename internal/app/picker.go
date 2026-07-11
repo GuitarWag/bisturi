@@ -96,7 +96,7 @@ func (p picker) View() string {
 	}
 	list := p.filtered()
 	var b strings.Builder
-	b.WriteString(stHeader.Render("ctx-bisturi") + " " + stTitle.Render(p.title) + "\n")
+	b.WriteString(stHeader.Render("bisturi") + " " + stTitle.Render(p.title) + "\n")
 	b.WriteString(stDim.Render("type to filter by name / title / id · ↑/↓ move · enter open · esc cancel") + "\n")
 	q := p.query
 	if q == "" {

@@ -56,7 +56,7 @@ func (r Record) RemovedLineCount() int { return r.removedCount() }
 // Dir is where surgery records live.
 func Dir() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".claude", "ctx-bisturi", "surgeries")
+	return filepath.Join(home, ".claude", "bisturi", "surgeries")
 }
 
 func recordPath(id string) string { return filepath.Join(Dir(), id+".json") }

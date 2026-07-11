@@ -44,7 +44,7 @@ func Run(args []string) int {
 		return 2
 	}
 	if opts.showVersion {
-		fmt.Println("ctx-bisturi", version)
+		fmt.Println("bisturi", version)
 		return 0
 	}
 

@@ -201,7 +201,7 @@ func (m model) View() string {
 }
 
 func (m model) chrome(body, title, help string) string {
-	header := stHeader.Render("ctx-bisturi") + " " + stTitle.Render(title)
+	header := stHeader.Render("bisturi") + " " + stTitle.Render(title)
 	footer := stFooter.Render(help)
 	return header + "\n" + body + "\n" + footer
 }
@@ -214,7 +214,7 @@ func (m model) listView() string {
 			kept += t.TokenEstimate()
 		}
 	}
-	header := stHeader.Render("ctx-bisturi") + " " +
+	header := stHeader.Render("bisturi") + " " +
 		stDim.Render(fmt.Sprintf("%s · %d blocks · ~%d tok",
 			short(sessionID(m.sess.Path)), len(m.sess.Turns), total))
 
