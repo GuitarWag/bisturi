@@ -98,7 +98,7 @@ func Run(args []string) int {
 		fmt.Fprintf(os.Stderr, "• or cut non-interactively:  bisturi %s --cut <nums>\n", rel)
 		return 2
 	}
-	return runTUI(sess, opts.inPlace)
+	return runTUI(sess)
 }
 
 func parseFlags(args []string) (options, error) {

@@ -14,8 +14,8 @@ import (
 
 // runTUI shows the selector and, if the user applies, performs the cut after
 // the alt-screen has been torn down (so normal stdout is clean).
-func runTUI(sess *session.Session, inPlace bool) int {
-	m := newModel(sess, inPlace)
+func runTUI(sess *session.Session) int {
+	m := newModel(sess)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	fm, err := p.Run()
 	if err != nil {
@@ -27,7 +27,9 @@ func runTUI(sess *session.Session, inPlace bool) int {
 		fmt.Println("nothing cut.")
 		return 0
 	}
-	return applyCut(sess, final.selected, final.inPlace, false)
+	// The diff view is the review step, so applying commits to the real file
+	// (a .bak-* backup and a restorable surgery are still written).
+	return applyCut(sess, final.selected, true, false)
 }
 
 type focus int
@@ -46,12 +48,11 @@ type model struct {
 	vp       viewport.Model
 	w, h     int
 	ready    bool
-	inPlace  bool
 	apply    bool
 }
 
-func newModel(sess *session.Session, inPlace bool) model {
-	return model{sess: sess, selected: map[int]bool{}, inPlace: inPlace}
+func newModel(sess *session.Session) model {
+	return model{sess: sess, selected: map[int]bool{}}
 }
 
 func (m model) Init() tea.Cmd { return nil }
@@ -313,12 +314,11 @@ func (m model) diffContent() string {
 	b.WriteString("\n")
 	b.WriteString(fmt.Sprintf("context: ~%d tok  →  ~%d tok  (%s)\n",
 		total, total-removed, stCut.Render(fmt.Sprintf("−%d", removed))))
-	mode := "writes a .cut.jsonl (original untouched)"
-	if m.inPlace {
-		mode = stWarn.Render("replaces the original in place (a .bak-* backup is written first)")
+	b.WriteString(stDim.Render("apply writes straight to the session file — a .bak-* backup is kept") + "\n")
+	if isLiveWarn(m.sess.Path) {
+		b.WriteString(stWarn.Render("this is the live session — the cut takes effect on the next resume") + "\n")
 	}
-	b.WriteString(stDim.Render("apply "+mode) + "\n")
-	b.WriteString("\nthis cut is saved and can be undone with " + stKey.Render("bisturi --restore <id>") + "\n")
+	b.WriteString("\nundo any time with " + stKey.Render("bisturi --restore <id>") + " (even after the session grows)\n")
 	return b.String()
 }
 

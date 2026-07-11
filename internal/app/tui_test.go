@@ -65,7 +65,7 @@ func key(s string) tea.KeyMsg {
 }
 
 func TestTUISelectAndApply(t *testing.T) {
-	m := newModel(tuiFixture(t), false)
+	m := newModel(tuiFixture(t))
 	// size it
 	nm, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m = nm.(model)
@@ -104,7 +104,7 @@ func TestTUISelectAndApply(t *testing.T) {
 }
 
 func TestTUISelectAll(t *testing.T) {
-	m := newModel(tuiFixture(t), false)
+	m := newModel(tuiFixture(t))
 	nm, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m = nm.(model)
 	nm, _ = m.Update(key("a"))
@@ -120,7 +120,7 @@ func TestTUISelectAll(t *testing.T) {
 }
 
 func TestTUIExpand(t *testing.T) {
-	m := newModel(tuiFixture(t), false)
+	m := newModel(tuiFixture(t))
 	nm, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m = nm.(model)
 	nm, _ = m.Update(key("enter"))
