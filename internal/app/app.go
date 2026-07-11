@@ -13,11 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wagnersilva/ctx-bisturi/internal/session"
-	"github.com/wagnersilva/ctx-bisturi/internal/surgery"
+	"github.com/GuitarWag/bisturi/internal/session"
+	"github.com/GuitarWag/bisturi/internal/surgery"
 )
 
-const version = "0.2.0"
+// version is overridden at release time via -ldflags "-X ...app.version=<tag>".
+var version = "dev"
 
 type options struct {
 	file          string

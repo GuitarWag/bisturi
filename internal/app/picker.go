@@ -7,7 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/wagnersilva/ctx-bisturi/internal/session"
+	"github.com/GuitarWag/bisturi/internal/session"
 )
 
 // runPicker shows a searchable list of sessions and returns the chosen file

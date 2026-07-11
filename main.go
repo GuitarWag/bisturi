@@ -5,7 +5,7 @@ package main
 import (
 	"os"
 
-	"github.com/wagnersilva/ctx-bisturi/internal/app"
+	"github.com/GuitarWag/bisturi/internal/app"
 )
 
 func main() {

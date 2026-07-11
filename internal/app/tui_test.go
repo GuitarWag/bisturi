@@ -7,7 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/wagnersilva/ctx-bisturi/internal/session"
+	"github.com/GuitarWag/bisturi/internal/session"
 )
 
 func tuiFixture(t *testing.T) *session.Session {

@@ -47,15 +47,34 @@ is — a chronological append log — and:
    with new turns (anchors are matched by uuid, so later additions don't
    interfere).
 
-## Build
+## Install
 
-Go 1.21+, no network needed if the Charm modules are cached:
+**Prebuilt binary** — grab the archive for your OS/arch from the
+[latest release](https://github.com/GuitarWag/bisturi/releases/latest), extract,
+and put `bisturi` on your `PATH`:
 
 ```bash
-go build -o bisturi .
-# optional: put it on PATH
-ln -sf "$PWD/bisturi" ~/.local/bin/bisturi
+# macOS (Apple Silicon) example — adjust the asset name for your platform
+curl -sL https://github.com/GuitarWag/bisturi/releases/latest/download/bisturi_<version>_darwin_arm64.tar.gz | tar xz
+sudo mv bisturi /usr/local/bin/
 ```
+
+**With Go** (1.21+):
+
+```bash
+go install github.com/GuitarWag/bisturi@latest
+```
+
+**From source:**
+
+```bash
+git clone https://github.com/GuitarWag/bisturi && cd bisturi
+go build -o bisturi .
+ln -sf "$PWD/bisturi" ~/.local/bin/bisturi   # optional
+```
+
+Releases are built for linux / macOS / windows on amd64 and arm64 by GoReleaser
+via GitHub Actions on each `v*` tag. Check your build with `bisturi --version`.
 
 ## Usage
 

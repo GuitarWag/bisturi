@@ -1,4 +1,4 @@
-module github.com/wagnersilva/ctx-bisturi
+module github.com/GuitarWag/bisturi
 
 go 1.26.3
 

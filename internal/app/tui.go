@@ -9,7 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/wagnersilva/ctx-bisturi/internal/session"
+	"github.com/GuitarWag/bisturi/internal/session"
 )
 
 // runTUI shows the selector and, if the user applies, performs the cut after

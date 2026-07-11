@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wagnersilva/ctx-bisturi/internal/session"
+	"github.com/GuitarWag/bisturi/internal/session"
 )
 
 // Run is one removed contiguous block plus the file anchor to re-insert after.

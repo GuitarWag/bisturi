@@ -2,6 +2,9 @@
 /bisturi
 *.exe
 
+# GoReleaser output
+/dist/
+
 # cut / backup artifacts
 *.cut.jsonl
 *.bak-*
