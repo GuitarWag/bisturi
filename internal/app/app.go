@@ -299,10 +299,26 @@ func applyCut(sess *session.Session, nums map[int]bool, inPlace, dryRun bool) in
 	}
 	fmt.Printf("wrote:   %s\n", out)
 	if recPath != "" {
-		fmt.Printf("surgery: %s  (undo with:  bisturi --restore %s)\n", rec.ID, rec.ID)
+		fmt.Printf("surgery: %s  (undo:  bisturi --restore %s)\n", rec.ID, rec.ID)
 	}
-	if !inPlace {
-		fmt.Println("\nreview it, then copy over the original id or re-run with --in-place.")
+
+	id := sessionID(sess.Path)
+	if inPlace {
+		// The cut is on disk, but a running/paused session keeps its context in
+		// memory — Claude Code only reloads the trimmed transcript on resume.
+		fmt.Println()
+		if isLiveWarn(sess.Path) {
+			fmt.Println("⚠  RESTART REQUIRED — this is the session you're in right now.")
+			fmt.Println("   The cut is saved, but your live context won't shrink until you reload it.")
+		} else {
+			fmt.Println("⚠  RESTART REQUIRED to take effect — a running session holds its")
+			fmt.Println("   context in memory; Claude Code reloads the transcript only on resume.")
+		}
+		fmt.Printf("   →  exit Claude Code, then:  claude --resume %s\n", id)
+	} else {
+		fmt.Println("\nwrote a .cut.jsonl sibling — the original session is untouched.")
+		fmt.Println("to use it: re-run with --in-place (or copy it over the original id), then")
+		fmt.Printf("restart Claude Code:  claude --resume %s\n", id)
 	}
 	return 0
 }

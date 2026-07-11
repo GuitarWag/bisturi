@@ -315,8 +315,9 @@ func (m model) diffContent() string {
 	b.WriteString(fmt.Sprintf("context: ~%d tok  →  ~%d tok  (%s)\n",
 		total, total-removed, stCut.Render(fmt.Sprintf("−%d", removed))))
 	b.WriteString(stDim.Render("apply writes straight to the session file — a .bak-* backup is kept") + "\n")
+	b.WriteString(stWarn.Render("⚠ takes effect after you RESTART Claude Code on this session (claude --resume)") + "\n")
 	if isLiveWarn(m.sess.Path) {
-		b.WriteString(stWarn.Render("this is the live session — the cut takes effect on the next resume") + "\n")
+		b.WriteString(stWarn.Render("  — this is the session you're in now; live context won't shrink until you reload") + "\n")
 	}
 	b.WriteString("\nundo any time with " + stKey.Render("bisturi --restore <id>") + " (even after the session grows)\n")
 	return b.String()
