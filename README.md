@@ -60,12 +60,20 @@ ln -sf "$PWD/bisturi" ~/.local/bin/bisturi
 ## Usage
 
 ```bash
-bisturi                       # pick a session in the current project, then TUI
-bisturi -s "connection"       # match a session by id or ai-title (substring)
+bisturi                       # pick a session interactively (searchable picker), then TUI
+bisturi -s 353                # match by the /rename name (what `claude --resume` shows)
+bisturi -s "connection"       # …or by session id / ai-title (substring)
+bisturi -a                    # pick across ALL projects, not just the cwd's
 bisturi --project ~/code/app  # sessions for another project
 bisturi path/to/session.jsonl # operate on a file directly
-bisturi --list                # list sessions for the current project
+bisturi --list                # list sessions (id, rename name, ai-title)
 ```
+
+Run `bisturi` from any folder: with no session named, it opens a searchable
+picker. Type to filter by rename name, ai-title, or id; `enter` opens the block
+TUI for that session. If the current folder has no sessions of its own, the
+picker spans all projects. `-s` matches the **rename name first** — the same
+name you use with `claude --resume`.
 
 Inspect and cut without the TUI:
 

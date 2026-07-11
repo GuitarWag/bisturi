@@ -18,11 +18,14 @@ Follow these steps:
 
 1. **Pick the session to operate on.**
    - If the argument is a `.jsonl` path, use it.
-   - If it's `-s <name>` or a bare word, pass it as `bisturi -s <name>` (matches
-     session id or ai-title, substring ok). If it names a project, add
-     `--project <dir>`.
-   - If empty, run `bisturi --list` and show recent sessions. If more than one,
-     ask which via AskUserQuestion (offer the 3–4 most recent by time + title).
+   - If it's `-s <name>` or a bare word, pass it as `bisturi -s <name>`. This
+     matches the session's **/rename name first** (the same name `claude
+     --resume` shows), then id, then ai-title — substring ok. Add `--project
+     <dir>` for another project, or `-a` to search all projects.
+   - If empty, run `bisturi --list` (or `bisturi -a --list` for all projects) and
+     show recent sessions with their rename name + ai-title. If more than one,
+     ask which via AskUserQuestion, or tell them to run `!bisturi` for the
+     searchable picker TUI.
    - IMPORTANT: the **currently-running** session cannot be safely edited while
      live — Claude Code may overwrite it on exit. If the target is the active
      session, tell the user the cut applies on the next resume/restart, and

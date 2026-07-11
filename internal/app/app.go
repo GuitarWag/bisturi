@@ -31,6 +31,7 @@ type options struct {
 	dryRun        bool
 	restoreID     string
 	listSurgeries bool
+	all           bool
 	showVersion   bool
 }
 
@@ -114,6 +115,8 @@ func parseFlags(args []string) (options, error) {
 	fs.BoolVar(&o.dryRun, "dry-run", false, "with --cut, report but write nothing")
 	fs.StringVar(&o.restoreID, "restore", "", "restore a saved surgery by id (undo a cut)")
 	fs.BoolVar(&o.listSurgeries, "surgeries", false, "list saved surgeries (undo history)")
+	fs.BoolVar(&o.all, "all", false, "consider sessions across all projects, not just the cwd's")
+	fs.BoolVar(&o.all, "a", false, "shorthand for --all")
 	fs.BoolVar(&o.showVersion, "version", false, "print version and exit")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "bisturi — surgically cut topics from a Claude Code session\n\n")
@@ -165,7 +168,7 @@ func splitArgs(args []string) (flags, positionals []string) {
 }
 
 // resolveSession turns flags into a concrete file path. Returns ("", nil) when
-// it already printed output (e.g. --list) or needs the caller to stop quietly.
+// it already printed output (e.g. --list) or the user cancelled the picker.
 func resolveSession(o options) (string, error) {
 	if o.file != "" {
 		if !fileExists(o.file) {
@@ -174,23 +177,26 @@ func resolveSession(o options) (string, error) {
 		return o.file, nil
 	}
 
-	projectDir := projectDir(o.project)
-	metas := session.ListSessions(projectDir)
+	metas, where := gatherMetas(o)
 	if len(metas) == 0 {
-		return "", fmt.Errorf("no sessions found in %s\npass a .jsonl path, or --project <dir>", projectDir)
+		return "", fmt.Errorf("no sessions found in %s\npass a .jsonl path, --project <dir>, or -a for all projects", where)
 	}
 
 	if o.sessionQuery != "" {
 		hits := session.Match(metas, o.sessionQuery)
 		if len(hits) == 0 {
-			return "", fmt.Errorf("no session matches %q in %s", o.sessionQuery, projectDir)
+			return "", fmt.Errorf("no session matches %q in %s", o.sessionQuery, where)
 		}
 		if len(hits) == 1 {
 			return hits[0].Path, nil
 		}
+		// Ambiguous: let the user pick if interactive, else list and stop.
+		if isTTY() {
+			return runPicker(hits, fmt.Sprintf("%q matches %d sessions", o.sessionQuery, len(hits)))
+		}
 		fmt.Fprintf(os.Stderr, "%q matches %d sessions:\n", o.sessionQuery, len(hits))
 		printMetas(hits)
-		return "", fmt.Errorf("be more specific")
+		return "", fmt.Errorf("be more specific, or run interactively to pick")
 	}
 
 	if o.list {
@@ -200,9 +206,29 @@ func resolveSession(o options) (string, error) {
 	if len(metas) == 1 {
 		return metas[0].Path, nil
 	}
-
+	// No selector, several sessions: pick interactively, else list and stop.
+	if isTTY() {
+		return runPicker(metas, "select a session")
+	}
 	printMetas(metas)
-	return "", fmt.Errorf("multiple sessions — pass -s <name> or a path")
+	return "", fmt.Errorf("multiple sessions — pass -s <name>, a path, or run interactively")
+}
+
+// gatherMetas returns the candidate sessions and a human label for where they
+// came from. With -a (or when the cwd's project has none), it spans all projects.
+func gatherMetas(o options) ([]session.Meta, string) {
+	if o.all {
+		return session.AllSessions(), "all projects"
+	}
+	dir := projectDir(o.project)
+	metas := session.ListSessions(dir)
+	if len(metas) == 0 && o.project == "" {
+		// Run from a folder with no sessions of its own — fall back to all.
+		if all := session.AllSessions(); len(all) > 0 {
+			return all, "all projects (none in cwd)"
+		}
+	}
+	return metas, dir
 }
 
 func applyCut(sess *session.Session, nums map[int]bool, inPlace, dryRun bool) int {
@@ -378,11 +404,23 @@ func printJSON(s *session.Session) {
 }
 
 func printMetas(metas []session.Meta) {
-	fmt.Printf("%3s  %-16s  %8s  %-8s  %s\n", "#", "modified", "size", "id", "title")
+	fmt.Printf("%3s  %-16s  %-8s  %-18s  %s\n", "#", "modified", "id", "name", "ai-title")
 	for i, m := range metas {
 		when := time.Unix(m.ModTime, 0).Format("2006-01-02 15:04")
-		fmt.Printf("%3d  %-16s  %8d  %-8s  %s\n", i+1, when, m.Size, short(m.ID), m.Title)
+		name := m.Name
+		if name == "" {
+			name = "—"
+		}
+		fmt.Printf("%3d  %-16s  %-8s  %-18s  %s\n", i+1, when, short(m.ID), truncate(name, 18), m.Title)
 	}
+}
+
+func truncate(s string, n int) string {
+	r := []rune(s)
+	if len(r) > n {
+		return string(r[:n-1]) + "…"
+	}
+	return s
 }
 
 // --- small helpers ---
