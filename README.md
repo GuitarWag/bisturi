@@ -43,8 +43,8 @@ kept, and the token delta:
 
 ![bisturi TUI — diff preview](images/ex_bisturi_diff.png)
 
-Press `y` to apply. It writes straight to the session file, keeping a `.bak-*`
-backup and a restorable surgery:
+Press `y` in the diff to apply. It writes straight to the session file, keeping
+a `.bak-*` backup and a restorable surgery:
 
 ![bisturi — applied in place](images/ex_bisturi_applied.png)
 
@@ -96,7 +96,7 @@ curl -sL https://github.com/GuitarWag/bisturi/releases/latest/download/bisturi_<
 sudo mv bisturi /usr/local/bin/
 ```
 
-**With Go** (1.21+):
+**With Go** (1.24+):
 
 ```bash
 go install github.com/GuitarWag/bisturi@latest
@@ -145,8 +145,11 @@ Undo:
 
 ```bash
 bisturi --surgeries                   # list saved cuts (undo history)
-bisturi --restore <id> --in-place     # put a cut's blocks back
+bisturi --restore <id>                # put a cut's blocks back (backup kept)
 ```
+
+Restore is idempotent — it refuses to run if the blocks are already present, so
+it can never duplicate transcript content.
 
 ### TUI keys
 
@@ -156,8 +159,8 @@ bisturi --restore <id> --in-place     # put a cut's blocks back
 | `space` / `x` | mark/unmark a block for cutting |
 | `a` / `n` | select all / none |
 | `enter` | expand the block (scroll its full interaction) |
-| `d` | diff preview (what's removed, token delta, before→after) |
-| `y` | apply the cut |
+| `d` / `y` | diff preview (what's removed, token delta, before→after) |
+| `y` *(in the diff)* | apply the cut |
 | `q` / `esc` | quit without changing anything |
 
 ## Inside Claude Code (`/bisturi`)

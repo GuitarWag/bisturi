@@ -125,6 +125,72 @@ func TestRestoreFrontBlock(t *testing.T) {
 	}
 }
 
+// TestRestoreIsIdempotent guards against the worst failure mode: restoring a
+// surgery twice (or against a file that never lost the content) must not
+// duplicate transcript messages.
+func TestRestoreIsIdempotent(t *testing.T) {
+	current := []string{
+		chainMsg("a1", nil),
+		chainMsg("a2", "a1"),
+		chainMsg("c1", "a2"),
+	}
+	rec := Record{
+		ID:   "20260101-000000-idem",
+		Runs: []Run{{AnchorBefore: "a2", Lines: []string{chainMsg("b1", "a2"), chainMsg("b2", "b1")}}},
+	}
+	once, err := Restore(current, rec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(once) != 5 {
+		t.Fatalf("first restore: got %d lines, want 5", len(once))
+	}
+	// Second restore against the already-restored file must refuse.
+	if _, err := Restore(once, rec); err == nil {
+		t.Fatal("second restore should error, not duplicate content")
+	}
+	// Restoring against a file that never lost the block must also refuse.
+	full := []string{chainMsg("a1", nil), chainMsg("a2", "a1"), chainMsg("b1", "a2"), chainMsg("b2", "b1"), chainMsg("c1", "b2")}
+	if _, err := Restore(full, rec); err == nil {
+		t.Fatal("restore into a never-cut file should error")
+	}
+}
+
+// TestRestoreInsertsAfterAnchorMetadata: uuid-less metadata directly after the
+// anchor belongs to the anchor's turn, so the restored block must land after
+// it, not between the anchor and its metadata.
+func TestRestoreInsertsAfterAnchorMetadata(t *testing.T) {
+	meta := `{"type":"last-prompt","leafUuid":"a2","lastPrompt":"x"}`
+	current := []string{
+		chainMsg("a1", nil),
+		chainMsg("a2", "a1"),
+		meta, // trailing metadata of turn A
+		chainMsg("c1", "a2"),
+	}
+	rec := Record{
+		ID:   "20260101-000000-meta",
+		Runs: []Run{{AnchorBefore: "a2", Lines: []string{chainMsg("b1", "a2")}}},
+	}
+	out, err := Restore(current, rec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	order := make([]string, 0, len(out))
+	for _, l := range out {
+		if u := uuidOf(t, l); u != "" {
+			order = append(order, u)
+		} else {
+			order = append(order, "meta")
+		}
+	}
+	want := []string{"a1", "a2", "meta", "b1", "c1"}
+	for i := range want {
+		if order[i] != want[i] {
+			t.Fatalf("order = %v, want %v", order, want)
+		}
+	}
+}
+
 func TestSaveLoadRoundTrip(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	rec := Record{ID: "20260101-000000-abc", SessionID: "abc", CutTurns: []int{2}, RemovedTokens: 42,

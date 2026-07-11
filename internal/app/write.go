@@ -8,14 +8,20 @@ import (
 	"time"
 )
 
-// writeLines writes JSONL content atomically (temp file + rename).
+// writeLines writes JSONL content atomically (temp file + rename), preserving
+// the target's existing permissions. Session transcripts are sensitive, so new
+// files default to 0600 rather than the umask default.
 func writeLines(path string, lines []string) error {
 	payload := strings.Join(lines, "\n")
 	if len(lines) > 0 {
 		payload += "\n"
 	}
+	mode := os.FileMode(0o600)
+	if fi, err := os.Stat(path); err == nil {
+		mode = fi.Mode().Perm()
+	}
 	tmp := fmt.Sprintf("%s.tmp-%d", path, os.Getpid())
-	f, err := os.Create(tmp)
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
 	if err != nil {
 		return err
 	}
@@ -33,14 +39,18 @@ func writeLines(path string, lines []string) error {
 	return os.Rename(tmp, path)
 }
 
-// backup copies src to a timestamped sibling and returns its path.
+// backup copies src to a timestamped sibling, preserving its permissions.
 func backup(src string, now time.Time) (string, error) {
 	dst := fmt.Sprintf("%s.bak-%s", src, now.Format("20060102-150405"))
 	data, err := os.ReadFile(src)
 	if err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(dst, data, 0o644); err != nil {
+	mode := os.FileMode(0o600)
+	if fi, err := os.Stat(src); err == nil {
+		mode = fi.Mode().Perm()
+	}
+	if err := os.WriteFile(dst, data, mode); err != nil {
 		return "", err
 	}
 	return dst, nil

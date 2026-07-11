@@ -70,9 +70,10 @@ func NewID(t time.Time, sessionID string) string {
 	return fmt.Sprintf("%s-%s", t.Format("20060102-150405"), short)
 }
 
-// Save writes a record to disk.
+// Save writes a record to disk. Records contain the removed conversation
+// text, so the directory and files are kept private (0700/0600).
 func Save(r Record) (string, error) {
-	if err := os.MkdirAll(Dir(), 0o755); err != nil {
+	if err := os.MkdirAll(Dir(), 0o700); err != nil {
 		return "", err
 	}
 	b, err := json.MarshalIndent(r, "", "  ")
@@ -124,6 +125,11 @@ func List(sessionID string) []Record {
 // Restore re-inserts a surgery's removed blocks into the current session lines
 // (which may have grown since) and relinks the result into a clean chain. It
 // returns the rebuilt lines without writing.
+//
+// Restore is idempotent: a run whose messages are already present in the file
+// (surgery restored before, or the cut was never applied to this file) is
+// skipped, so restoring can never duplicate transcript content. If every run is
+// already present it returns an error instead of rewriting the file.
 func Restore(current []string, r Record) ([]string, error) {
 	if len(r.Runs) == 0 {
 		return nil, fmt.Errorf("surgery %s has nothing to restore", r.ID)
@@ -135,42 +141,80 @@ func Restore(current []string, r Record) ([]string, error) {
 		}
 	}
 
-	// Bucket runs by their insertion anchor.
-	afterMap := map[string][][]string{}
-	var frontRuns [][]string
+	// Keep only runs that are actually missing from the file (idempotency).
+	var pending []Run
 	for _, run := range r.Runs {
-		if run.AnchorBefore == "" {
-			frontRuns = append(frontRuns, run.Lines)
+		if runAlreadyPresent(run, uuidAt) {
 			continue
 		}
-		if !uuidAt[run.AnchorBefore] {
-			return nil, fmt.Errorf("cannot restore: anchor %s not found in current session", short(run.AnchorBefore))
-		}
-		afterMap[run.AnchorBefore] = append(afterMap[run.AnchorBefore], run.Lines)
+		pending = append(pending, run)
+	}
+	if len(pending) == 0 {
+		return nil, fmt.Errorf("surgery %s is already present in the session — nothing to restore", r.ID)
 	}
 
-	firstChain := firstChainIndex(current)
-	spliced := make([]string, 0, len(current)+r.removedCount())
+	// Compute an insertion index for each run. A run goes after its anchor
+	// line *and* after any uuid-less metadata lines that immediately follow it
+	// (those belong to the anchor's turn), so restored blocks land exactly
+	// between turns.
+	insertBefore := map[int][][]string{} // line index -> blocks to insert before it
+	appendAtEnd := [][]string{}
+	lineUUID := make([]string, len(current))
 	for i, line := range current {
-		if len(frontRuns) > 0 && i == firstChain {
-			for _, fr := range frontRuns {
-				spliced = append(spliced, fr...)
-			}
-			frontRuns = nil
+		lineUUID[i] = fieldOf(line, "uuid")
+	}
+	for _, run := range pending {
+		if run.AnchorBefore == "" {
+			insertBefore[firstChainIndex(current)] = append(insertBefore[firstChainIndex(current)], run.Lines)
+			continue
 		}
-		spliced = append(spliced, line)
-		if runs, ok := afterMap[fieldOf(line, "uuid")]; ok {
-			for _, rl := range runs {
-				spliced = append(spliced, rl...)
+		anchor := -1
+		for i, u := range lineUUID {
+			if u == run.AnchorBefore {
+				anchor = i
+				break
 			}
+		}
+		if anchor == -1 {
+			return nil, fmt.Errorf("cannot restore: anchor %s not found in current session", short(run.AnchorBefore))
+		}
+		j := anchor + 1
+		for j < len(current) && lineUUID[j] == "" {
+			j++ // skip the anchor turn's trailing metadata
+		}
+		if j >= len(current) {
+			appendAtEnd = append(appendAtEnd, run.Lines)
+		} else {
+			insertBefore[j] = append(insertBefore[j], run.Lines)
 		}
 	}
-	for _, fr := range frontRuns { // no chain node to precede: append at end
-		spliced = append(spliced, fr...)
+
+	spliced := make([]string, 0, len(current)+r.removedCount())
+	for i, line := range current {
+		for _, block := range insertBefore[i] {
+			spliced = append(spliced, block...)
+		}
+		spliced = append(spliced, line)
+	}
+	for _, block := range appendAtEnd {
+		spliced = append(spliced, block...)
 	}
 
 	// Relink so the re-inserted blocks thread cleanly with everything else.
 	return session.Relink(spliced), nil
+}
+
+// runAlreadyPresent reports whether a run's message content is already in the
+// file. A run counts as present when every uuid it carries already exists; a
+// run with no uuids at all (pure metadata) is treated as present so it is
+// never blindly duplicated.
+func runAlreadyPresent(run Run, uuidAt map[string]bool) bool {
+	for _, l := range run.Lines {
+		if u := fieldOf(l, "uuid"); u != "" && !uuidAt[u] {
+			return false
+		}
+	}
+	return true
 }
 
 // --- helpers ---
@@ -202,7 +246,7 @@ func short(s string) string {
 
 func atomicWrite(path, payload string) error {
 	tmp := fmt.Sprintf("%s.tmp-%d", path, os.Getpid())
-	if err := os.WriteFile(tmp, []byte(payload), 0o644); err != nil {
+	if err := os.WriteFile(tmp, []byte(payload), 0o600); err != nil {
 		return err
 	}
 	return os.Rename(tmp, path)

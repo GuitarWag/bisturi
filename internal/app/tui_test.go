@@ -103,6 +103,30 @@ func TestTUISelectAndApply(t *testing.T) {
 	}
 }
 
+// TestTUIListYOpensDiff: 'y' from the list must route through the diff review,
+// never apply directly.
+func TestTUIListYOpensDiff(t *testing.T) {
+	m := newModel(tuiFixture(t))
+	nm, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	m = nm.(model)
+	nm, _ = m.Update(key(" ")) // select turn 1
+	m = nm.(model)
+	nm, _ = m.Update(key("y"))
+	m = nm.(model)
+	if m.apply {
+		t.Fatal("'y' from the list must not apply directly")
+	}
+	if m.focus != focusDiff {
+		t.Fatalf("'y' from the list should open the diff, focus=%v", m.focus)
+	}
+	// 'y' inside the diff applies.
+	nm, _ = m.Update(key("y"))
+	m = nm.(model)
+	if !m.apply {
+		t.Fatal("'y' in the diff should apply")
+	}
+}
+
 func TestTUISelectAll(t *testing.T) {
 	m := newModel(tuiFixture(t))
 	nm, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})

@@ -160,16 +160,13 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.focus = focusExpand
 		m.vp.SetContent(m.expandContent())
 		m.vp.GotoTop()
-	case "d":
+	case "d", "y":
+		// The diff is the review step, so 'y' from the list opens it too —
+		// only 'y' inside the diff actually applies.
 		if len(m.selected) > 0 {
 			m.focus = focusDiff
 			m.vp.SetContent(m.diffContent())
 			m.vp.GotoTop()
-		}
-	case "y":
-		if len(m.selected) > 0 {
-			m.apply = true
-			return m, tea.Quit
 		}
 	}
 	return m, nil
@@ -243,8 +240,8 @@ func (m model) listView() string {
 	footer := stFooter.Render("↑/↓ move · ") + stKey.Render("space") +
 		stFooter.Render(" select · ") + stKey.Render("a") + stFooter.Render(" all · ") +
 		stKey.Render("n") + stFooter.Render(" none · ") + stKey.Render("enter") +
-		stFooter.Render(" expand · ") + stKey.Render("d") + stFooter.Render(" diff · ") +
-		stKey.Render("y") + stFooter.Render(" apply · ") + stKey.Render("q") + stFooter.Render(" quit")
+		stFooter.Render(" expand · ") + stKey.Render("d") + stFooter.Render(" diff → apply · ") +
+		stKey.Render("q") + stFooter.Render(" quit")
 	return b.String() + "\n" + footer
 }
 

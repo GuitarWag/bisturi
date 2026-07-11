@@ -9,6 +9,9 @@
 *.cut.jsonl
 *.bak-*
 
+# macOS
+.DS_Store
+
 # python attic
 __pycache__/
 *.pyc

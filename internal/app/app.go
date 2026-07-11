@@ -55,13 +55,13 @@ func Run(args []string) int {
 		return doRestore(opts)
 	}
 
-	path, err := resolveSession(opts)
+	path, done, err := resolveSession(opts)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	if path == "" {
-		return 1 // a message was already printed (e.g. --list)
+	if done {
+		return 0 // --list output or a cancelled picker; already handled
 	}
 
 	sess, err := session.Load(path)
@@ -168,51 +168,64 @@ func splitArgs(args []string) (flags, positionals []string) {
 	return flags, positionals
 }
 
-// resolveSession turns flags into a concrete file path. Returns ("", nil) when
-// it already printed output (e.g. --list) or the user cancelled the picker.
-func resolveSession(o options) (string, error) {
+// resolveSession turns flags into a concrete file path. done=true means the
+// command already completed successfully without a session (e.g. --list
+// printed, or the user cancelled the picker).
+func resolveSession(o options) (path string, done bool, err error) {
 	if o.file != "" {
 		if !fileExists(o.file) {
-			return "", fmt.Errorf("no such file: %s", o.file)
+			return "", false, fmt.Errorf("no such file: %s", o.file)
 		}
-		return o.file, nil
+		return o.file, false, nil
 	}
 
 	metas, where := gatherMetas(o)
 	if len(metas) == 0 {
-		return "", fmt.Errorf("no sessions found in %s\npass a .jsonl path, --project <dir>, or -a for all projects", where)
+		return "", false, fmt.Errorf("no sessions found in %s\npass a .jsonl path, --project <dir>, or -a for all projects", where)
 	}
 
 	if o.sessionQuery != "" {
 		hits := session.Match(metas, o.sessionQuery)
 		if len(hits) == 0 {
-			return "", fmt.Errorf("no session matches %q in %s", o.sessionQuery, where)
+			return "", false, fmt.Errorf("no session matches %q in %s", o.sessionQuery, where)
 		}
 		if len(hits) == 1 {
-			return hits[0].Path, nil
+			return hits[0].Path, false, nil
 		}
 		// Ambiguous: let the user pick if interactive, else list and stop.
 		if isTTY() {
-			return runPicker(hits, fmt.Sprintf("%q matches %d sessions", o.sessionQuery, len(hits)))
+			return pickOrCancel(hits, fmt.Sprintf("%q matches %d sessions", o.sessionQuery, len(hits)))
 		}
 		fmt.Fprintf(os.Stderr, "%q matches %d sessions:\n", o.sessionQuery, len(hits))
 		printMetas(hits)
-		return "", fmt.Errorf("be more specific, or run interactively to pick")
+		return "", false, fmt.Errorf("be more specific, or run interactively to pick")
 	}
 
 	if o.list {
 		printMetas(metas)
-		return "", nil
+		return "", true, nil
 	}
 	if len(metas) == 1 {
-		return metas[0].Path, nil
+		return metas[0].Path, false, nil
 	}
 	// No selector, several sessions: pick interactively, else list and stop.
 	if isTTY() {
-		return runPicker(metas, "select a session")
+		return pickOrCancel(metas, "select a session")
 	}
 	printMetas(metas)
-	return "", fmt.Errorf("multiple sessions — pass -s <name>, a path, or run interactively")
+	return "", false, fmt.Errorf("multiple sessions — pass -s <name>, a path, or run interactively")
+}
+
+// pickOrCancel wraps the picker: a cancelled picker is a successful no-op.
+func pickOrCancel(metas []session.Meta, title string) (string, bool, error) {
+	p, err := runPicker(metas, title)
+	if err != nil {
+		return "", false, err
+	}
+	if p == "" {
+		return "", true, nil // user cancelled
+	}
+	return p, false, nil
 }
 
 // gatherMetas returns the candidate sessions and a human label for where they
@@ -343,22 +356,23 @@ func doRestore(o options) int {
 		fmt.Fprintf(os.Stderr, "restore failed: %v\n", err)
 		return 1
 	}
-	now := time.Now()
-	out := target
-	if o.inPlace {
-		if _, err := backup(target, now); err != nil {
-			fmt.Fprintf(os.Stderr, "backup failed: %v\n", err)
-			return 1
-		}
-	} else {
-		out = cutSiblingPath(target)
+	// Restore is an undo, so it writes the session file itself (with a backup
+	// first) — a "restored copy" sibling would just be confusing.
+	bak, err := backup(target, time.Now())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "backup failed: %v\n", err)
+		return 1
 	}
-	if err := writeLines(out, restored); err != nil {
+	if err := writeLines(target, restored); err != nil {
 		fmt.Fprintf(os.Stderr, "write failed: %v\n", err)
 		return 1
 	}
 	fmt.Printf("restored surgery %s (%d lines re-inserted).\n", rec.ID, rec.RemovedLineCount())
-	fmt.Printf("wrote: %s\n", out)
+	fmt.Printf("backup: %s\n", bak)
+	fmt.Printf("wrote:  %s\n", target)
+	fmt.Println("\n⚠  RESTART REQUIRED to take effect — a running session holds its context")
+	fmt.Println("   in memory; Claude Code reloads the transcript only on resume.")
+	fmt.Printf("   →  exit Claude Code, then:  claude --resume %s\n", sessionID(target))
 	return 0
 }
 
@@ -469,6 +483,9 @@ func parseNums(spec string, count int) (map[int]bool, error) {
 			if err1 != nil || err2 != nil {
 				return nil, fmt.Errorf("bad range: %q", part)
 			}
+			if lo > hi {
+				return nil, fmt.Errorf("bad range: %q (start > end)", part)
+			}
 			for n := lo; n <= hi; n++ {
 				out[n] = true
 			}
@@ -479,6 +496,9 @@ func parseNums(spec string, count int) (map[int]bool, error) {
 			return nil, fmt.Errorf("bad turn number: %q", part)
 		}
 		out[n] = true
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("nothing to cut in %q — pass turn numbers like 2,4 or 2-4", spec)
 	}
 	for n := range out {
 		if n < 1 || n > count {
