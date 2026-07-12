@@ -202,5 +202,3 @@ trimmed context on the next `claude --resume`.
 ```bash
 go test ./...
 ```
-
-The previous Python prototype is kept under `attic/python/`.
