@@ -5,6 +5,8 @@ versions follow [SemVer](https://semver.org). Per-release binaries and
 auto-generated notes are on the [Releases page](https://github.com/GuitarWag/bisturi/releases).
 
 ## [Unreleased]
+
+## [0.2.3] - 2026-07-12
 ### Added
 - `--compact` (optional): replace cut blocks with a `claude -p` summary spliced
   in as an `isCompactSummary` message, reclaiming most tokens while keeping the
@@ -47,7 +49,8 @@ auto-generated notes are on the [Releases page](https://github.com/GuitarWag/bis
   session, safe file-order relinking, restorable surgeries, `/bisturi` slash
   command, and a GoReleaser release pipeline (linux/macOS/windows, amd64/arm64).
 
-[Unreleased]: https://github.com/GuitarWag/bisturi/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/GuitarWag/bisturi/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/GuitarWag/bisturi/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/GuitarWag/bisturi/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/GuitarWag/bisturi/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/GuitarWag/bisturi/compare/v0.1.0...v0.2.0
