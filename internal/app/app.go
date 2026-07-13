@@ -33,6 +33,7 @@ type options struct {
 	restoreID     string
 	listSurgeries bool
 	all           bool
+	reverse       bool
 	showVersion   bool
 }
 
@@ -118,6 +119,8 @@ func parseFlags(args []string) (options, error) {
 	fs.BoolVar(&o.listSurgeries, "surgeries", false, "list saved surgeries (undo history)")
 	fs.BoolVar(&o.all, "all", false, "consider sessions across all projects, not just the cwd's")
 	fs.BoolVar(&o.all, "a", false, "shorthand for --all")
+	fs.BoolVar(&o.reverse, "reverse", false, "list sessions oldest-first (default newest-first)")
+	fs.BoolVar(&o.reverse, "r", false, "shorthand for --reverse")
 	fs.BoolVar(&o.showVersion, "version", false, "print version and exit")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "bisturi — surgically cut topics from a Claude Code session\n\n")
@@ -182,6 +185,11 @@ func resolveSession(o options) (path string, done bool, err error) {
 	metas, where := gatherMetas(o)
 	if len(metas) == 0 {
 		return "", false, fmt.Errorf("no sessions found in %s\npass a .jsonl path, --project <dir>, or -a for all projects", where)
+	}
+	if o.reverse {
+		for i, j := 0, len(metas)-1; i < j; i, j = i+1, j-1 {
+			metas[i], metas[j] = metas[j], metas[i]
+		}
 	}
 
 	if o.sessionQuery != "" {
