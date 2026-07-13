@@ -9,7 +9,7 @@ auto-generated notes are on the [Releases page](https://github.com/GuitarWag/bis
 - `--compact` (optional): replace cut blocks with a `claude -p` summary spliced
   in as an `isCompactSummary` message, reclaiming most tokens while keeping the
   gist. Hard cut stays the default; `--restore` drops the summary and restores
-  the originals.
+  the originals. Toggle it in the TUI with `c` (shown in the diff view).
 - `ctrl+r` in the session picker reverses the order live.
 
 ## [0.2.2] - 2026-07-12

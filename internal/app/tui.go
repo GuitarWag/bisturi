@@ -29,7 +29,7 @@ func runTUI(sess *session.Session) int {
 	}
 	// The diff view is the review step, so applying commits to the real file
 	// (a .bak-* backup and a restorable surgery are still written).
-	return applyCut(sess, final.selected, true, false, false)
+	return applyCut(sess, final.selected, true, false, final.compact)
 }
 
 type focus int
@@ -49,6 +49,7 @@ type model struct {
 	w, h     int
 	ready    bool
 	apply    bool
+	compact  bool
 }
 
 func newModel(sess *session.Session) model {
@@ -118,6 +119,10 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "y", "enter":
 			m.apply = true
 			return m, tea.Quit
+		case "c":
+			m.compact = !m.compact
+			m.vp.SetContent(m.diffContent())
+			return m, nil
 		case "q", "esc", "backspace", "left", "d":
 			m.focus = focusList
 			return m, nil
@@ -156,6 +161,8 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "n", "A":
 		m.selected = map[int]bool{}
+	case "c":
+		m.compact = !m.compact
 	case "enter", "right", "l":
 		m.focus = focusExpand
 		m.vp.SetContent(m.expandContent())
@@ -241,7 +248,7 @@ func (m model) listView() string {
 		stFooter.Render(" select · ") + stKey.Render("a") + stFooter.Render(" all · ") +
 		stKey.Render("n") + stFooter.Render(" none · ") + stKey.Render("enter") +
 		stFooter.Render(" expand · ") + stKey.Render("d") + stFooter.Render(" diff → apply · ") +
-		stKey.Render("q") + stFooter.Render(" quit")
+		stKey.Render("c") + stFooter.Render(compactLabel(m.compact)) + stKey.Render("q") + stFooter.Render(" quit")
 	return b.String() + "\n" + footer
 }
 
@@ -311,6 +318,11 @@ func (m model) diffContent() string {
 	b.WriteString("\n")
 	b.WriteString(fmt.Sprintf("context: ~%d tok  →  ~%d tok  (%s)\n",
 		total, total-removed, stCut.Render(fmt.Sprintf("−%d", removed))))
+	mode := "mode: hard cut (delete)  ·  " + stKey.Render("c") + " = compact instead"
+	if m.compact {
+		mode = stTitle.Render("mode: compact") + " — blocks replaced by a claude -p summary  ·  " + stKey.Render("c") + " = hard cut instead"
+	}
+	b.WriteString(mode + "\n")
 	b.WriteString(stDim.Render("apply writes straight to the session file — a .bak-* backup is kept") + "\n")
 	b.WriteString(stWarn.Render("⚠ takes effect after you RESTART Claude Code on this session (claude --resume)") + "\n")
 	if isLiveWarn(m.sess.Path) {
@@ -318,6 +330,13 @@ func (m model) diffContent() string {
 	}
 	b.WriteString("\nundo any time with " + stKey.Render("bisturi --restore <id>") + " (even after the session grows)\n")
 	return b.String()
+}
+
+func compactLabel(on bool) string {
+	if on {
+		return " compact:on · "
+	}
+	return " compact:off · "
 }
 
 // trimANSI is a cheap width helper for the reverse-video cursor row: we render
