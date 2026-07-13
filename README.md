@@ -139,7 +139,14 @@ bisturi -s slack --json               # same, as JSON (for scripts / the slash c
 bisturi FILE --cut 2,4 --dry-run      # show what would change, write nothing
 bisturi FILE --cut 2-4                # writes FILE.cut.jsonl (original untouched)
 bisturi FILE --cut 2 --in-place       # replace original, keep a .bak-* backup
+bisturi FILE --cut 2 --compact        # replace the block with an LLM summary instead of deleting
 ```
+
+`--compact` (optional) pipes the selected blocks to `claude -p` and splices the
+summary back in as a compact-summary message — keeps topic B's gist while
+reclaiming most of its tokens. Lossy and needs the `claude` CLI; hard cut is the
+default. The originals are still saved, so `--restore` brings back the real
+content and drops the summary.
 
 Undo:
 

@@ -38,6 +38,7 @@ type Record struct {
 	Titles        []string `json:"titles"`
 	RemovedTokens int      `json:"removed_tokens"`
 	Runs          []Run    `json:"runs"`
+	SummaryUUID   string   `json:"summary_uuid,omitempty"` // compact node to remove on undo
 	BackupPath    string   `json:"backup_path,omitempty"`
 }
 
@@ -134,6 +135,19 @@ func Restore(current []string, r Record) ([]string, error) {
 	if len(r.Runs) == 0 {
 		return nil, fmt.Errorf("surgery %s has nothing to restore", r.ID)
 	}
+	// Drop the compact summary node (if this was a --compact cut) so undo
+	// restores the real blocks rather than leaving the summary alongside them.
+	if r.SummaryUUID != "" {
+		kept := current[:0:0]
+		for _, line := range current {
+			if fieldOf(line, "uuid") == r.SummaryUUID {
+				continue
+			}
+			kept = append(kept, line)
+		}
+		current = kept
+	}
+
 	uuidAt := map[string]bool{}
 	for _, line := range current {
 		if u := fieldOf(line, "uuid"); u != "" {

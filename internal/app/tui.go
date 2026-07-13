@@ -29,7 +29,7 @@ func runTUI(sess *session.Session) int {
 	}
 	// The diff view is the review step, so applying commits to the real file
 	// (a .bak-* backup and a restorable surgery are still written).
-	return applyCut(sess, final.selected, true, false)
+	return applyCut(sess, final.selected, true, false, false)
 }
 
 type focus int

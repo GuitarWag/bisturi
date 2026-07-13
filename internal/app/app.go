@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -34,6 +35,7 @@ type options struct {
 	listSurgeries bool
 	all           bool
 	reverse       bool
+	compact       bool
 	showVersion   bool
 }
 
@@ -88,7 +90,7 @@ func Run(args []string) int {
 			fmt.Fprintln(os.Stderr, err)
 			return 1
 		}
-		return applyCut(sess, nums, opts.inPlace, opts.dryRun)
+		return applyCut(sess, nums, opts.inPlace, opts.dryRun, opts.compact)
 	}
 
 	// Interactive TUI path — needs a real terminal.
@@ -121,6 +123,7 @@ func parseFlags(args []string) (options, error) {
 	fs.BoolVar(&o.all, "a", false, "shorthand for --all")
 	fs.BoolVar(&o.reverse, "reverse", false, "list sessions oldest-first (default newest-first)")
 	fs.BoolVar(&o.reverse, "r", false, "shorthand for --reverse")
+	fs.BoolVar(&o.compact, "compact", false, "with --cut: replace the blocks with an LLM summary (claude -p) instead of deleting")
 	fs.BoolVar(&o.showVersion, "version", false, "print version and exit")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "bisturi — surgically cut topics from a Claude Code session\n\n")
@@ -253,7 +256,7 @@ func gatherMetas(o options) ([]session.Meta, string) {
 	return metas, dir
 }
 
-func applyCut(sess *session.Session, nums map[int]bool, inPlace, dryRun bool) int {
+func applyCut(sess *session.Session, nums map[int]bool, inPlace, dryRun, compact bool) int {
 	res := sess.Cut(nums)
 	var removedTokens int
 	var titles []string
@@ -276,6 +279,27 @@ func applyCut(sess *session.Session, nums map[int]bool, inPlace, dryRun bool) in
 	}
 
 	now := time.Now()
+
+	// --compact: replace the removed blocks with one LLM summary instead of
+	// deleting them. The original blocks are still saved in the surgery, so
+	// undo restores the real content, not the summary. Done before any write so
+	// a summarization failure aborts cleanly.
+	var summaryUUID string
+	if compact {
+		summary, err := compactSubset(sess, nums)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "compact failed: %v\n", err)
+			return 1
+		}
+		summaryUUID = fmt.Sprintf("bisturi-compact-%d", now.UnixNano())
+		node := summaryNode(summaryUUID, summary, now)
+		anchor := ""
+		if len(res.Runs) > 0 {
+			anchor = res.Runs[0].AnchorBefore
+		}
+		res.Lines = session.Relink(spliceAfter(res.Lines, anchor, node))
+	}
+
 	out := sess.Path
 	var bak string
 	if inPlace {
@@ -307,6 +331,7 @@ func applyCut(sess *session.Session, nums map[int]bool, inPlace, dryRun bool) in
 		Titles:        titles,
 		RemovedTokens: removedTokens,
 		Runs:          runs,
+		SummaryUUID:   summaryUUID,
 		BackupPath:    bak,
 	}
 	recPath, err := surgery.Save(rec)
@@ -314,7 +339,11 @@ func applyCut(sess *session.Session, nums map[int]bool, inPlace, dryRun bool) in
 		fmt.Fprintf(os.Stderr, "warning: surgery not saved (%v) — restore won't be available\n", err)
 	}
 
-	fmt.Printf("cut turns %s — ~%d tokens removed.\n", nice, removedTokens)
+	verb := "cut"
+	if compact {
+		verb = "compacted"
+	}
+	fmt.Printf("%s turns %s — ~%d tokens removed.\n", verb, nice, removedTokens)
 	if bak != "" {
 		fmt.Printf("backup:  %s\n", bak)
 	}
@@ -514,6 +543,95 @@ func parseNums(spec string, count int) (map[int]bool, error) {
 		}
 	}
 	return out, nil
+}
+
+// compactSubset feeds the selected turns' text to `claude -p` and returns a
+// concise summary to splice in where they were.
+func compactSubset(sess *session.Session, nums map[int]bool) (string, error) {
+	var b strings.Builder
+	for _, t := range sess.Turns {
+		if !nums[t.Number] {
+			continue
+		}
+		b.WriteString("## " + t.Title(100) + "\n")
+		for _, l := range t.PreviewLines() {
+			b.WriteString(l + "\n")
+		}
+		b.WriteString("\n")
+	}
+	prompt := "Summarize this excerpt of a coding session concisely. Preserve decisions, " +
+		"file names, and conclusions that later work may depend on; drop tool noise. " +
+		"Output only the summary.\n\n" + b.String()
+
+	cmd := exec.Command("claude", "-p")
+	cmd.Stdin = strings.NewReader(prompt)
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("claude -p: %w (is the claude CLI installed and authenticated?)", err)
+	}
+	s := strings.TrimSpace(string(out))
+	if s == "" {
+		return "", fmt.Errorf("claude -p returned an empty summary")
+	}
+	return s, nil
+}
+
+// summaryNode builds a synthetic compact-summary line matching Claude Code's
+// own format (a user message flagged isCompactSummary). parentUuid is set by
+// Relink, so it's left null here.
+func summaryNode(uuid, summary string, now time.Time) string {
+	body := "[bisturi] Compacted summary of removed blocks:\n\n" + summary
+	return marshalLine(map[string]any{
+		"type":             "user",
+		"uuid":             uuid,
+		"parentUuid":       nil,
+		"isCompactSummary": true,
+		"timestamp":        now.Format(time.RFC3339),
+		"message":          map[string]any{"role": "user", "content": body},
+	})
+}
+
+// spliceAfter inserts one line after the line whose uuid == anchor (or before
+// the first chain line when anchor is empty).
+func spliceAfter(lines []string, anchor, node string) []string {
+	out := make([]string, 0, len(lines)+1)
+	if anchor == "" {
+		inserted := false
+		for _, l := range lines {
+			if !inserted {
+				if t := lineField(l, "type"); t == "user" || t == "assistant" {
+					out = append(out, node)
+					inserted = true
+				}
+			}
+			out = append(out, l)
+		}
+		if !inserted {
+			out = append(out, node)
+		}
+		return out
+	}
+	for _, l := range lines {
+		out = append(out, l)
+		if lineField(l, "uuid") == anchor {
+			out = append(out, node)
+		}
+	}
+	return out
+}
+
+func lineField(line, key string) string {
+	var o map[string]any
+	if json.Unmarshal([]byte(line), &o) != nil {
+		return ""
+	}
+	s, _ := o[key].(string)
+	return s
+}
+
+func marshalLine(m map[string]any) string {
+	b, _ := json.Marshal(m)
+	return string(b)
 }
 
 func sessionID(path string) string {
