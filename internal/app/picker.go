@@ -75,6 +75,12 @@ func (p picker) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				p.cursor++
 			}
 			return p, nil
+		case tea.KeyCtrlR:
+			for i, j := 0, len(p.all)-1; i < j; i, j = i+1, j-1 {
+				p.all[i], p.all[j] = p.all[j], p.all[i]
+			}
+			p.cursor = 0
+			return p, nil
 		case tea.KeyBackspace:
 			if p.query != "" {
 				p.query = p.query[:len(p.query)-1]
@@ -97,7 +103,7 @@ func (p picker) View() string {
 	list := p.filtered()
 	var b strings.Builder
 	b.WriteString(stHeader.Render("bisturi") + " " + stTitle.Render(p.title) + "\n")
-	b.WriteString(stDim.Render("type to filter by name / title / id · ↑/↓ move · enter open · esc cancel") + "\n")
+	b.WriteString(stDim.Render("type to filter by name / title / id · ↑/↓ move · ^r reverse · enter open · esc cancel") + "\n")
 	q := p.query
 	if q == "" {
 		q = stDim.Render("(all)")
