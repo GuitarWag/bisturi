@@ -5,12 +5,26 @@ import (
 	"os"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/GuitarWag/bisturi/internal/session"
 )
+
+// suggestMsg carries the result of an async claude suggestion.
+type suggestMsg struct {
+	sel map[int]bool
+	err error
+}
+
+func suggestCmd(sess *session.Session) tea.Cmd {
+	return func() tea.Msg {
+		sel, err := suggestSelection(sess)
+		return suggestMsg{sel: sel, err: err}
+	}
+}
 
 // runTUI shows the selector and, if the user applies, performs the cut after
 // the alt-screen has been torn down (so normal stdout is clean).
@@ -50,10 +64,15 @@ type model struct {
 	ready    bool
 	apply    bool
 	compact  bool
+	sp       spinner.Model
+	working  bool   // a claude suggestion is in flight
+	note     string // transient status line (suggestion result / error)
 }
 
 func newModel(sess *session.Session) model {
-	return model{sess: sess, selected: map[int]bool{}}
+	sp := spinner.New()
+	sp.Spinner = spinner.Dot
+	return model{sess: sess, selected: map[int]bool{}, sp: sp}
 }
 
 func (m model) Init() tea.Cmd { return nil }
@@ -91,7 +110,32 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case suggestMsg:
+		m.working = false
+		if msg.err != nil {
+			m.note = stWarn.Render("suggest: " + msg.err.Error())
+		} else {
+			m.selected = msg.sel
+			m.note = stStatus.Render(fmt.Sprintf("claude suggested %d block(s) to compact — review with d", len(msg.sel)))
+			m.compact = true
+		}
+		return m, nil
+
+	case spinner.TickMsg:
+		if !m.working {
+			return m, nil
+		}
+		var cmd tea.Cmd
+		m.sp, cmd = m.sp.Update(msg)
+		return m, cmd
+
 	case tea.KeyMsg:
+		if m.working { // ignore input while a suggestion is running (except quit)
+			if msg.String() == "ctrl+c" {
+				return m, tea.Quit
+			}
+			return m, nil
+		}
 		return m.handleKey(msg)
 	}
 
@@ -163,6 +207,10 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.selected = map[int]bool{}
 	case "c":
 		m.compact = !m.compact
+	case "s":
+		m.working = true
+		m.note = ""
+		return m, tea.Batch(m.sp.Tick, suggestCmd(m.sess))
 	case "enter", "right", "l":
 		m.focus = focusExpand
 		m.vp.SetContent(m.expandContent())
@@ -222,10 +270,18 @@ func (m model) listView() string {
 		stDim.Render(fmt.Sprintf("%s · %d blocks · ~%d tok",
 			short(sessionID(m.sess.Path)), len(m.sess.Turns), total))
 
-	status := stStatus.Render(fmt.Sprintf(" cutting %d → keeps ~%d/%d tok (~%d removed)",
-		len(m.selected), kept, total, total-kept))
-	if isLiveWarn(m.sess.Path) {
-		status += "  " + stWarn.Render("[live session — applies on next resume]")
+	var status string
+	if m.working {
+		status = stStatus.Render(" " + m.sp.View() + " asking claude which blocks are safe to compact…")
+	} else {
+		status = stStatus.Render(fmt.Sprintf(" cutting %d → keeps ~%d/%d tok (~%d removed)",
+			len(m.selected), kept, total, total-kept))
+		if isLiveWarn(m.sess.Path) {
+			status += "  " + stWarn.Render("[live session — applies on next resume]")
+		}
+		if m.note != "" {
+			status += "\n " + m.note
+		}
 	}
 
 	var b strings.Builder
@@ -247,7 +303,8 @@ func (m model) listView() string {
 	footer := stFooter.Render("↑/↓ move · ") + stKey.Render("space") +
 		stFooter.Render(" select · ") + stKey.Render("a") + stFooter.Render(" all · ") +
 		stKey.Render("n") + stFooter.Render(" none · ") + stKey.Render("enter") +
-		stFooter.Render(" expand · ") + stKey.Render("d") + stFooter.Render(" diff → apply · ") +
+		stFooter.Render(" expand · ") + stKey.Render("s") + stFooter.Render(" suggest · ") +
+		stKey.Render("d") + stFooter.Render(" diff → apply · ") +
 		stKey.Render("c") + stFooter.Render(compactLabel(m.compact)) + stKey.Render("q") + stFooter.Render(" quit")
 	return b.String() + "\n" + footer
 }

@@ -5,6 +5,11 @@ versions follow [SemVer](https://semver.org). Per-release binaries and
 auto-generated notes are on the [Releases page](https://github.com/GuitarWag/bisturi/releases).
 
 ## [Unreleased]
+### Added
+- Claude-suggested selection: `--suggest` (CLI) prints which blocks are safe to
+  compact and the command to run; `s` in the TUI does it async, pre-selecting
+  the blocks (with compact mode on) for review. A spinner shows progress during
+  every `claude -p` call, including the compact step.
 
 ## [0.2.3] - 2026-07-12
 ### Added

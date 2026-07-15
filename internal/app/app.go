@@ -36,6 +36,7 @@ type options struct {
 	all           bool
 	reverse       bool
 	compact       bool
+	suggest       bool
 	showVersion   bool
 }
 
@@ -84,6 +85,18 @@ func Run(args []string) int {
 	case opts.printTurns:
 		printTurns(sess)
 		return 0
+	case opts.suggest:
+		stop := spin("asking claude which blocks are safe to compact…")
+		sel, err := suggestSelection(sess)
+		stop()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		spec := joinInts(sortedTurns(sel))
+		fmt.Printf("suggested compact: turns %s\n", spec)
+		fmt.Printf("run:  bisturi -s %s --cut %s --compact\n", sessionID(sess.Path), spec)
+		return 0
 	case opts.cut != "":
 		nums, err := parseNums(opts.cut, len(sess.Turns))
 		if err != nil {
@@ -124,6 +137,7 @@ func parseFlags(args []string) (options, error) {
 	fs.BoolVar(&o.reverse, "reverse", false, "list sessions oldest-first (default newest-first)")
 	fs.BoolVar(&o.reverse, "r", false, "shorthand for --reverse")
 	fs.BoolVar(&o.compact, "compact", false, "with --cut: replace the blocks with an LLM summary (claude -p) instead of deleting")
+	fs.BoolVar(&o.suggest, "suggest", false, "ask claude which blocks are safe to compact, print the command, and exit")
 	fs.BoolVar(&o.showVersion, "version", false, "print version and exit")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "bisturi — surgically cut topics from a Claude Code session\n\n")
@@ -286,7 +300,9 @@ func applyCut(sess *session.Session, nums map[int]bool, inPlace, dryRun, compact
 	// a summarization failure aborts cleanly.
 	var summaryUUID string
 	if compact {
+		stop := spin(fmt.Sprintf("compacting %d block(s) with claude -p…", len(nums)))
 		summary, err := compactSubset(sess, nums)
+		stop()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "compact failed: %v\n", err)
 			return 1
@@ -563,6 +579,11 @@ func compactSubset(sess *session.Session, nums map[int]bool) (string, error) {
 		"file names, and conclusions that later work may depend on; drop tool noise. " +
 		"Output only the summary.\n\n" + b.String()
 
+	return claudeP(prompt)
+}
+
+// claudeP runs `claude -p` with prompt on stdin and returns its trimmed output.
+func claudeP(prompt string) (string, error) {
 	cmd := exec.Command("claude", "-p")
 	cmd.Stdin = strings.NewReader(prompt)
 	out, err := cmd.Output()
@@ -571,9 +592,87 @@ func compactSubset(sess *session.Session, nums map[int]bool) (string, error) {
 	}
 	s := strings.TrimSpace(string(out))
 	if s == "" {
-		return "", fmt.Errorf("claude -p returned an empty summary")
+		return "", fmt.Errorf("claude -p returned empty output")
 	}
 	return s, nil
+}
+
+// suggestSelection asks claude which turns are safe to compact and returns them
+// as a turn-number set. Used by --suggest and the TUI 'g' key.
+func suggestSelection(sess *session.Session) (map[int]bool, error) {
+	var b strings.Builder
+	for _, t := range sess.Turns {
+		b.WriteString(fmt.Sprintf("%d. (~%d tok) %s", t.Number, t.TokenEstimate(), t.Title(100)))
+		if d := t.Detail(); d != "" {
+			b.WriteString("  [" + d + "]")
+		}
+		b.WriteByte('\n')
+	}
+	prompt := "Below is the turn list of a coding session. Pick the turns that are SAFE TO COMPACT " +
+		"— resolved side-quests, verbose tool dumps, dead ends — while keeping the active thread and " +
+		"anything later turns likely depend on. Return ONLY a JSON array of turn numbers, e.g. [2,5,7]. " +
+		"If nothing is safe, return [].\n\n" + b.String()
+	out, err := claudeP(prompt)
+	if err != nil {
+		return nil, err
+	}
+	return parseSuggestion(out, len(sess.Turns))
+}
+
+// parseSuggestion extracts a JSON array of turn numbers from claude's reply
+// (which may wrap it in prose) and clamps them to valid turns.
+func parseSuggestion(out string, nturns int) (map[int]bool, error) {
+	i, j := strings.Index(out, "["), strings.LastIndex(out, "]")
+	if i < 0 || j < i {
+		return nil, fmt.Errorf("claude did not return a JSON array: %q", truncate(out, 80))
+	}
+	var ids []int
+	if err := json.Unmarshal([]byte(out[i:j+1]), &ids); err != nil {
+		return nil, fmt.Errorf("parse suggestion %q: %w", out[i:j+1], err)
+	}
+	sel := map[int]bool{}
+	for _, n := range ids {
+		if n >= 1 && n <= nturns {
+			sel[n] = true
+		}
+	}
+	if len(sel) == 0 {
+		return nil, fmt.Errorf("claude suggested nothing to compact")
+	}
+	return sel, nil
+}
+
+// spin shows a terminal spinner on stderr until the returned stop() is called.
+// On a non-tty it prints the message once and stop() is a no-op.
+func spin(msg string) func() {
+	if !isTTY() {
+		fmt.Fprintln(os.Stderr, msg)
+		return func() {}
+	}
+	done := make(chan struct{})
+	go func() {
+		frames := []rune("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
+		for i := 0; ; i++ {
+			select {
+			case <-done:
+				fmt.Fprint(os.Stderr, "\r\033[K")
+				return
+			case <-time.After(100 * time.Millisecond):
+				fmt.Fprintf(os.Stderr, "\r%c %s", frames[i%len(frames)], msg)
+			}
+		}
+	}()
+	return func() { close(done) }
+}
+
+// sortedTurns returns the selected turn numbers in ascending order.
+func sortedTurns(sel map[int]bool) []int {
+	out := make([]int, 0, len(sel))
+	for n := range sel {
+		out = append(out, n)
+	}
+	sort.Ints(out)
+	return out
 }
 
 // summaryNode builds a synthetic compact-summary line matching Claude Code's

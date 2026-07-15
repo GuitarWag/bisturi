@@ -7,6 +7,23 @@ import (
 	"time"
 )
 
+func TestParseSuggestion(t *testing.T) {
+	// wrapped in prose, out-of-range clamped, dupes collapsed
+	sel, err := parseSuggestion("Sure! Safe to compact: [2, 5, 5, 99] — the rest is active.", 6)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sel) != 2 || !sel[2] || !sel[5] {
+		t.Errorf("got %v, want {2,5}", sel)
+	}
+	// no array, empty array, and all-out-of-range must error
+	for _, bad := range []string{"none of them", "[]", "[7,8]"} {
+		if _, err := parseSuggestion(bad, 6); err == nil {
+			t.Errorf("parseSuggestion(%q) should error", bad)
+		}
+	}
+}
+
 func TestParseNumsRejectsEmptyAndBadRanges(t *testing.T) {
 	for _, spec := range []string{"", " ", ",", "3-1"} {
 		if _, err := parseNums(spec, 5); err == nil {

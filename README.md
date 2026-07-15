@@ -140,6 +140,7 @@ bisturi FILE --cut 2,4 --dry-run      # show what would change, write nothing
 bisturi FILE --cut 2-4                # writes FILE.cut.jsonl (original untouched)
 bisturi FILE --cut 2 --in-place       # replace original, keep a .bak-* backup
 bisturi FILE --cut 2 --compact        # replace the block with an LLM summary instead of deleting
+bisturi -s NAME --suggest             # ask claude which blocks are safe to compact, print the command
 ```
 
 `--compact` (optional) pipes the selected blocks to `claude -p` and splices the
@@ -166,6 +167,7 @@ it can never duplicate transcript content.
 | `space` / `x` | mark/unmark a block for cutting |
 | `a` / `n` | select all / none |
 | `enter` | expand the block (scroll its full interaction) |
+| `s` | ask claude which blocks are safe to compact, and pre-select them |
 | `d` / `y` | diff preview (what's removed, token delta, before→after) |
 | `y` *(in the diff)* | apply the cut |
 | `q` / `esc` | quit without changing anything |
