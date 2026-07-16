@@ -5,6 +5,8 @@ versions follow [SemVer](https://semver.org). Per-release binaries and
 auto-generated notes are on the [Releases page](https://github.com/GuitarWag/bisturi/releases).
 
 ## [Unreleased]
+
+## [0.2.4] - 2026-07-16
 ### Added
 - Claude-suggested selection: `--suggest` (CLI) prints which blocks are safe to
   compact and the command to run; `s` in the TUI does it async, pre-selecting
